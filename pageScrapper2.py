@@ -367,6 +367,58 @@ def parse_color(html):
                                     'color_code': color_code
                                 })
         return colors
+    
+def parse_images(html):
+    """Extract all image URLs from the product gallery"""
+    soup = BeautifulSoup(html, 'html.parser')
+    image_urls = set()
+    
+    # Find the main image container
+    gallery_div = soup.find('div', class_='relative flex w-full grow justify-center')
+    if not gallery_div:
+        return []
+    
+    # Find all image tags
+    for img in gallery_div.find_all('img', class_='block'):
+        # Skip promotional images
+        if 'Visible Mobile Plan' in img.get('alt', ''):
+            continue
+            
+        # Get base image URL
+        if img.get('src'):
+            # Clean URL by removing CDN parameters
+            clean_url = re.sub(r'/cdn-cgi/image/[^/]+/', '', img['src'])
+            image_urls.add(clean_url)
+        
+        # Process srcset if exists
+        if img.get('srcset'):
+            for source in img['srcset'].split(','):
+                url = source.strip().split(' ')[0]
+                # Clean URL by removing CDN parameters
+                clean_url = re.sub(r'/cdn-cgi/image/[^/]+/', '', url)
+                image_urls.add(clean_url)
+    
+    # Convert to list and order by appearance
+    seen = set()
+    ordered_urls = []
+    for img in gallery_div.find_all('img', class_='block'):
+        if 'Visible Mobile Plan' in img.get('alt', ''):
+            continue
+            
+        sources = []
+        if img.get('src'):
+            sources.append(img['src'])
+        if img.get('srcset'):
+            sources.extend([s.split()[0] for s in img['srcset'].split(',')])
+            
+        for url in sources:
+            clean_url = re.sub(r'/cdn-cgi/image/[^/]+/', '', url)
+            if clean_url not in seen:
+                seen.add(clean_url)
+                ordered_urls.append(clean_url)
+    
+    return ordered_urls
+
 
 def scrape(url):
     html = fetch_html(url)
@@ -381,7 +433,8 @@ def scrape(url):
         "processors": parse_processors(html),
         "memories": parse_memory(html),
         "storage_options": parse_storage(html),
-        "color_options": parse_color(html)
+        "color_options": parse_color(html),
+        "images": parse_images(html)  # Add images to the output
     }
     
     return data
